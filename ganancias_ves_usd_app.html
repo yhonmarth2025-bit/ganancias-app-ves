@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Ganancias VES/USD</title>
+    <!-- REFERENCIA A MANIFEST (PWA) -->
+    <link rel="manifest" href="./manifest.json">
+    <!-- Carga de Tailwind CSS para un diseño limpio y responsivo -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configuración de la fuente Inter -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+        /* Estilo para items de lista */
+        .profit-item {
+            transition: transform 0.2s, box-shadow 0.2s;
+            border-left: 5px solid #10b981; /* Verde esmeralda */
+        }
+        .profit-item:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .input-field:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 1px #3b82f6;
+        }
+        /* Estilos de edición en línea */
+        .editable-field {
+            cursor: pointer;
+            border-bottom: 1px dashed #9ca3af; 
+            transition: border-bottom-color 0.15s;
+            display: inline-block; 
+        }
+        .editable-field:hover {
+            border-bottom-color: #3b82f6;
+        }
+        .edit-input {
+            width: auto;
+            min-width: 6rem;
+            max-width: 100%;
+            padding: 2px 4px;
+            border: 1px solid #3b82f6;
+            border-radius: 4px;
+            font-size: inherit;
+            color: #1f2937;
+        }
+        /* Estilo para el input de la tasa en el encabezado: más compacto */
+        .rate-input-small {
+            width: 60px; /* Reducido al máximo */
+            text-align: right;
+            padding: 2px 4px;
+            font-weight: bold;
+            font-size: 0.75rem; /* Texto muy pequeño */
+        }
+        /* Estilo del botón de agregar */
+        .add-button {
+            transition: transform 0.1s;
+        }
+        .add-button:active {
+            transform: scale(0.95);
+        }
+        /* Optimización de la tasa en móvil */
+        .header-rate-box {
+            padding: 3px 6px; /* Reducción de padding */
+            line-height: 1.1; /* Para compactar verticalmente */
+        }
+        .header-title-container {
+            /* Asegura que el título y la tasa estén en la misma línea principal */
+            display: flex;
+            justify-content: space-between;
+            align-items: center; /* Alineación vertical central */
+            width: 100%;
+        }
+        /* Contenedor de Métricas para que se apile mejor en móvil */
+        .metrics-container {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr)); /* 2 columnas en móvil */
+            gap: 0.75rem; /* Espacio entre ítems */
+            align-items: center;
+            width: 100%;
+            margin-top: 0.75rem;
+            border-top: 1px dashed #e5e7eb;
+            padding-top: 0.75rem;
+        }
+        /* Aseguramos que la Ganancia y el Margen sean más grandes */
+        .large-metric {
+            font-size: 1.5rem; /* text-2xl */
+            line-height: 1.5rem;
+            font-weight: 800;
+        }
+        /* Ajuste del botón de eliminar para que quede a la derecha */
+        .delete-button-container {
+            grid-column: 2 / 3; /* Coloca el botón en la segunda columna */
+            justify-self: end;
+            align-self: center;
+        }
+        /* Estilo para el resumen total en la parte superior */
+        #totals-summary-container {
+            transition: opacity 0.3s;
+        }
+        /* Estilos del Bottom Sheet */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.75);
+            z-index: 50;
+            display: flex;
+            align-items: flex-end; /* Alinea el contenido al fondo */
+            justify-content: center;
+            padding: 0;
+        }
+        .modal-content {
+            background-color: white;
+            border-top-left-radius: 1.5rem; /* Solo arriba */
+            border-top-right-radius: 1.5rem; /* Solo arriba */
+            padding: 1.5rem;
+            max-width: 600px; /* Un poco más de ancho para pantallas grandes */
+            width: 100%;
+            box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.3);
+            position: relative;
+            /* Propiedades de transición del Bottom Sheet */
+            transform: translateY(100%); /* Oculto por defecto */
+            transition: transform 0.3s ease-out; 
+        }
+        /* Clase para mostrar el Bottom Sheet */
+        .modal-content.is-visible {
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Contenedor Principal y Diseño Mobile-First -->
+    <div class="min-h-screen p-3 sm:p-6 md:p-8 bg-gray-50">
+        
+        <!-- Encabezado MÓVIL OPTIMIZADO: Título y Tasa alineados en la misma fila -->
+        <header class="mb-6 pb-2 border-b border-gray-200">
+            
+            <div class="header-title-container mb-2">
+                <!-- Título -->
+                <h1 class="text-xl sm:text-2xl font-extrabold text-gray-900 leading-tight flex-shrink mr-2">
+                    Rentabilidad VES/USD
+                </h1>
+
+                <!-- Campo de Tasa del Dólar (Máxima compresión) -->
+                <div class="header-rate-box bg-yellow-100 rounded-lg border border-yellow-300 shadow-sm flex flex-col items-end flex-shrink-0">
+                    <p class="text-xs font-medium text-gray-700 leading-none">
+                        Tasa USD/VES
+                    </p>
+                    <div class="flex items-center space-x-1">
+                        <input type="number" id="daily-rate-input" placeholder="0.00" step="0.01" min="0"
+                               class="input-field rate-input-small border border-gray-300 rounded-lg focus:outline-none text-gray-900"
+                               onchange="saveDailyRate(this.value)">
+                        <strong id="current-rate-display" class="text-blue-700 text-sm font-extrabold">0.00 VES</strong>
+                    </div>
+                    <div id="rate-error-message" class="text-red-500 text-xs mt-1 hidden"></div>
+                </div>
+            </div>
+            
+            <!-- Subtítulo y Auth Status (debajo de la línea principal) -->
+            <p class="text-xs text-gray-500 mt-1">
+                Calcula tus ganancias y margen.
+            </p>
+            <p id="auth-status" class="text-xs text-blue-600 mt-1 truncate"></p> 
+        </header>
+
+        <!-- Contenedor del Resumen Total (POSICIÓN PRINCIPAL: Ocupa todo el ancho) -->
+        <div id="totals-summary-container" class="w-full mb-4">
+            <!-- El resumen se inyectará aquí -->
+        </div>
+        
+        <!-- Botón para Mostrar el Formulario (Ancho Completo, debajo del resumen) -->
+        <div class="mb-6">
+            <button id="toggle-form-button" onclick="toggleProductModal(true)"
+                    class="add-button w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl shadow-lg flex items-center justify-center transition duration-150 ease-in-out">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                <span>Agregar Producto</span>
+            </button>
+        </div>
+
+        <!-- Listado de Productos -->
+        <section class="p-6 bg-white rounded-xl shadow-lg">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4 border-b pb-2">
+                Tus Productos Guardados
+            </h2>
+            <div id="products-list" class="space-y-4">
+                <!-- Los productos se insertarán aquí por JavaScript -->
+                <p id="loading-message" class="text-center text-gray-500">Cargando productos...</p>
+            </div>
+        </section>
+
+        <!-- Modal para Agregar/Editar Producto (BOTTOM SHEET) -->
+        <div id="product-modal-window" class="modal-overlay hidden" onclick="if(event.target.id === 'product-modal-window') toggleProductModal(false)">
+            <div id="product-modal-content" class="modal-content">
+                 <div class="flex justify-between items-center mb-4 border-b pb-2">
+                    <h2 class="text-xl font-semibold text-gray-800">
+                        Agregar Nuevo Producto
+                    </h2>
+                    <button onclick="toggleProductModal(false)" class="text-gray-500 hover:text-gray-900 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                
+                <form id="product-form" class="space-y-4">
+                    <!-- Campo Nombre del Producto -->
+                    <div>
+                        <label for="product-name" class="block text-sm font-medium text-gray-700 mb-1">Nombre del Producto</label>
+                        <input type="text" id="product-name" placeholder="Ej: Jabón de Avena y Miel" required
+                               class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none text-gray-900">
+                    </div>
+
+                    <!-- 1. Precio Fijo USD (Costo) -->
+                    <div>
+                        <label for="price-usd" class="block text-sm font-medium text-gray-700 mb-1">Precio Fijo (USD) - *Costo Base*</label>
+                        <input type="number" id="price-usd" placeholder="2.50" step="0.01" min="0" required
+                               class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none text-gray-900">
+                    </div>
+
+                    <!-- 2. Precio de Venta VES (Venta) -->
+                    <div>
+                        <label for="price-sell-ves" class="block text-sm font-medium text-gray-700 mb-1">Precio de Venta (VES)</label>
+                        <input type="number" id="price-sell-ves" placeholder="100.00" step="0.01" min="0" required
+                               class="input-field w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none text-gray-900">
+                    </div>
+
+                    <!-- Botón de Guardar -->
+                    <button type="submit" id="save-button"
+                            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition duration-150 ease-in-out shadow-md disabled:opacity-50"
+                            disabled>
+                        Guardar Producto y Calcular
+                    </button>
+                    <div id="product-error-message" class="text-red-500 text-sm mt-2 hidden"></div>
+                    <p id="rate-warning" class="text-orange-500 text-xs mt-2">¡Advertencia! Necesitas ingresar una Tasa del Dólar válida para calcular la ganancia.</p>
+                </form>
+            </div>
+        </div>
+
+        <!-- Contenedor para la Alerta Modal (Reemplazo de alert()) -->
+        <div id="custom-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-50 flex items-center justify-center hidden">
+            <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full">
+                <h3 id="modal-title" class="text-lg font-bold mb-3">Mensaje</h3>
+                <p id="modal-message" class="text-gray-700 mb-4">Ha ocurrido una acción.</p>
+                <button id="modal-close-button" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">Cerrar</button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Script de Firebase y Lógica de la Aplicación -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, query, addDoc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Registro del Service Worker para PWA ---
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./service-worker.js').then((registration) => {
+                    console.log('Service Worker registrado con éxito:', registration);
+                }).catch((error) => {
+                    console.log('Fallo el registro del Service Worker:', error);
+                });
+            });
+        }
+
+
+        // --- Configuración Global ---
+        setLogLevel('debug');
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let db;
+        let auth;
+        let userId = null;
+        let isAuthReady = false;
+        let dailyRate = 0; // Tasa global del dólar
+
+        const PRODUCTS_COLLECTION = 'products_ves';
+        const RATE_DOC_PATH = `artifacts/${appId}/public/data/config/global_rate`;
+
+        // --- Funciones de Utilidad ---
+
+        /**
+         * Muestra u oculta el modal de agregar producto (Bottom Sheet).
+         * @param {boolean} show Si es true, muestra. Si es false, oculta.
+         */
+        window.toggleProductModal = function(show) {
+            const modalWindow = document.getElementById('product-modal-window');
+            const modalContent = document.getElementById('product-modal-content');
+
+            if (show) {
+                modalWindow.classList.remove('hidden');
+                // Forzar un repaint antes de aplicar la transición
+                setTimeout(() => {
+                    modalContent.classList.add('is-visible');
+                }, 10);
+                
+                document.getElementById('product-name').focus(); // Enfocar el primer campo
+            } else {
+                modalContent.classList.remove('is-visible');
+                // Ocultar la ventana solo después de que la transición termine (300ms)
+                setTimeout(() => {
+                    modalWindow.classList.add('hidden');
+                    document.getElementById('product-form').reset(); // Limpiar formulario al cerrar
+                }, 300); 
+            }
+        }
+
+
+        /**
+         * Muestra un modal de alerta personalizado.
+         * @param {string} title Título del modal.
+         * @param {string} message Contenido del mensaje.
+         * @param {boolean} isError Define si es un mensaje de error o éxito.
+         */
+        function showCustomModal(title, message, isError = true) {
+            const titleElement = document.getElementById('modal-title');
+            titleElement.textContent = title;
+            document.getElementById('modal-message').textContent = message;
+
+            if (isError) {
+                 titleElement.classList.remove('text-blue-600');
+                 titleElement.classList.add('text-red-600');
+            } else {
+                 titleElement.classList.remove('text-red-600');
+                 titleElement.classList.add('text-blue-600');
+            }
+            document.getElementById('custom-modal').classList.remove('hidden');
+            // Re-adjuntar el listener simple para cerrar
+            document.getElementById('modal-close-button').onclick = () => {
+                 document.getElementById('custom-modal').classList.add('hidden');
+            };
+            // Asegurarse de que el botón de confirmación de eliminación no esté visible si existe
+            const confirmBtn = document.getElementById('confirm-delete-button');
+            if (confirmBtn) confirmBtn.style.display = 'none';
+        }
+
+        // --- 1. Inicialización de Firebase y Autenticación ---
+
+        async function initializeFirebase() {
+            try {
+                if (Object.keys(firebaseConfig).length === 0) {
+                    showCustomModal("Error de Configuración", "La configuración de Firebase está vacía.", true);
+                    return;
+                }
+
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                await setPersistence(auth, browserLocalPersistence);
+
+                // Autenticación (con token o anónima)
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                // Listener de estado de autenticación
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        isAuthReady = true;
+                        document.getElementById('auth-status').textContent = `Conectado como: ${userId}`;
+                        console.log("Usuario autenticado. UID:", userId);
+                        // Iniciar la escucha de datos
+                        listenToDailyRate();
+                    } else {
+                        userId = null;
+                        isAuthReady = true;
+                        document.getElementById('auth-status').textContent = 'Sesión anónima iniciada.';
+                        console.log("Sesión anónima.");
+                    }
+                });
+
+            } catch (error) {
+                console.error("Error al inicializar Firebase:", error);
+                showCustomModal("Error de Conexión", `No se pudo conectar a la base de datos: ${error.message}`, true);
+            }
+        }
+
+        // --- 2. Manejo de la Tasa del Dólar Global ---
+
+        /**
+         * Guarda la tasa del día en un documento global de Firestore.
+         * @param {string} rateString El valor de la tasa.
+         */
+        window.saveDailyRate = async function(rateString) {
+            const rate = parseFloat(rateString);
+            const rateInput = document.getElementById('daily-rate-input');
+            const errorMessageElement = document.getElementById('rate-error-message');
+
+            errorMessageElement.classList.add('hidden');
+            rateInput.classList.remove('border-red-500');
+
+            if (isNaN(rate) || rate <= 0) {
+                errorMessageElement.textContent = "La tasa debe ser un número positivo.";
+                errorMessageElement.classList.remove('hidden');
+                rateInput.classList.add('border-red-500');
+                dailyRate = 0;
+                updateRateUI(0);
+                return;
+            }
+
+            if (!isAuthReady || !db) {
+                 // Si no está listo, solo actualiza la variable y espera la inicialización
+                 dailyRate = rate;
+                 updateRateUI(rate);
+                 return;
+            }
+
+            try {
+                await setDoc(doc(db, RATE_DOC_PATH), {
+                    rate: rate,
+                    updated: new Date()
+                }, { merge: true });
+                // El listener actualizará la UI
+            } catch (e) {
+                console.error("Error al guardar la tasa:", e);
+                showCustomModal("Error al Guardar Tasa", `No se pudo guardar la tasa: ${e.message}`, true);
+            }
+        }
+
+        /**
+         * Escucha los cambios en la tasa del día en tiempo real.
+         */
+        function listenToDailyRate() {
+            if (!db) return;
+
+            onSnapshot(doc(db, RATE_DOC_PATH), (docSnap) => {
+                let oldRate = dailyRate;
+                if (docSnap.exists() && docSnap.data().rate) {
+                    dailyRate = parseFloat(docSnap.data().rate);
+                    updateRateUI(dailyRate);
+                } else {
+                    // Si no hay tasa guardada
+                    dailyRate = 0;
+                    updateRateUI(0);
+                }
+
+                // Si la tasa ha cambiado o si es la primera carga (oldRate === 0 && dailyRate > 0),
+                // actualizamos los productos para recalcular
+                if (oldRate !== dailyRate || (oldRate === 0 && dailyRate > 0)) {
+                    listenToProducts();
+                }
+            }, (error) => {
+                console.error("Error al escuchar la tasa:", error);
+            });
+        }
+
+        /**
+         * Actualiza los elementos de la UI relacionados con la tasa.
+         * @param {number} rate La tasa actual.
+         */
+        function updateRateUI(rate) {
+            document.getElementById('current-rate-display').textContent = `${rate.toFixed(2)} VES`;
+            // Solo actualiza el input si no está enfocado (para evitar interrumpir la edición)
+            const rateInput = document.getElementById('daily-rate-input');
+            if (document.activeElement !== rateInput) {
+                rateInput.value = rate > 0 ? rate.toFixed(2) : '';
+            }
+            
+            const saveButton = document.getElementById('save-button');
+            const rateWarning = document.getElementById('rate-warning');
+
+            if (rate > 0) {
+                saveButton.disabled = false;
+                rateWarning.classList.add('hidden');
+            } else {
+                saveButton.disabled = true;
+                rateWarning.classList.remove('hidden');
+            }
+        }
+
+        // --- 3. Lógica de Cálculo y Persistencia ---
+
+        /**
+         * Calcula las métricas de rentabilidad.
+         * @param {number} priceUSD El precio fijo en USD (costo).
+         * @param {number} priceSellVES El precio de venta en VES.
+         * @param {number} rate La tasa actual del dólar (VES/USD).
+         * @returns {{costVES: number, profitVES: number, margin: number}}
+         */
+        function calculateProfit(priceUSD, priceSellVES, rate) {
+            const costVES = priceUSD * rate;
+            const profitVES = priceSellVES - costVES;
+
+            // Margen de ganancia: (Ganancia / Precio de Venta en VES) * 100
+            const margin = priceSellVES > 0 ? (profitVES / priceSellVES) * 100 : 0;
+
+            return {
+                costVES: parseFloat(costVES.toFixed(2)),
+                profitVES: parseFloat(profitVES.toFixed(2)),
+                margin: parseFloat(margin.toFixed(2))
+            };
+        }
+
+        /**
+         * Convierte un producto a su representación HTML, incluyendo elementos editables.
+         */
+        function createProductHtml(product, docId) {
+            // Recalculamos con la tasa actual (dailyRate) para reflejar los cambios en tiempo real
+            const { costVES, profitVES, margin } = calculateProfit(product.price_usd, product.price_sell_ves, dailyRate);
+            
+            const costUsdDisplay = product.price_usd.toFixed(2);
+            const sellVesDisplay = product.price_sell_ves.toFixed(2);
+            const profitClass = profitVES >= 0 ? 'text-green-600' : 'text-red-600';
+
+            return `
+                <div class="profit-item bg-gray-50 p-4 rounded-xl shadow-sm flex flex-col" data-id="${docId}">
+                    <!-- Bloque Superior: Nombre y Costos -->
+                    <div class="flex justify-between items-start mb-2">
+                        <!-- Lado Izquierdo: Nombre y Precios -->
+                        <div class="flex-grow min-w-0">
+                            <!-- Nombre del Producto -->
+                            <h3 class="text-lg font-bold text-gray-900 truncate">
+                                <span class="editable-field" data-field="name" data-type="text">${product.name}</span>
+                            </h3>
+                            
+                            <!-- Costo Base USD -->
+                            <p class="text-xs text-gray-500 font-medium mt-1">
+                                Costo Base: 
+                                <span class="text-green-700 font-bold">$
+                                    <span class="editable-field" data-field="price_usd" data-type="number" data-original-value="${costUsdDisplay}">${costUsdDisplay}</span> USD
+                                </span>
+                            </p>
+                            
+                            <!-- Precio de Venta VES -->
+                            <p class="text-sm text-gray-600">
+                                Venta: 
+                                <span class="font-bold text-indigo-700">
+                                    <span class="editable-field" data-field="price_sell_ves" data-type="number" data-original-value="${sellVesDisplay}">${sellVesDisplay}</span> VES
+                                </span>
+                            </p>
+                        </div>
+                        
+                        <!-- Lado Derecho: Costo Equivalente (VES) -->
+                        <div class="text-right flex-shrink-0 ml-4 pt-1">
+                            <p class="text-xs font-medium text-gray-500 leading-none">Costo Equiv. (VES)</p>
+                            <p class="text-sm font-bold text-gray-700 leading-none mt-1">
+                                ${costVES.toFixed(2)} VES
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Bloque Inferior (Optimizado para Móvil): Ganancia, Margen y Eliminar -->
+                    <div class="metrics-container">
+                        
+                        <!-- 1. Ganancia en VES -->
+                        <div class="text-left">
+                            <p class="text-xs font-medium text-gray-500">Ganancia (VES)</p>
+                            <p class="large-metric ${profitClass}">
+                                ${profitVES.toFixed(2)}
+                            </p>
+                        </div>
+
+                        <!-- 2. Margen % -->
+                        <div class="text-left">
+                            <p class="text-xs font-medium text-gray-500">Margen (%)</p>
+                            <p class="large-metric ${profitClass}">
+                                ${margin.toFixed(2)}%
+                            </p>
+                        </div>
+                        
+                        <!-- 3. Botón de Eliminación (alineado a la derecha en su propia celda) -->
+                        <div class="delete-button-container">
+                            <button data-id="${docId}" class="delete-btn text-red-500 hover:text-red-700 p-2 rounded-full transition duration-150 ease-in-out" aria-label="Eliminar producto">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 10-2 0v6a1 1 0 102 0V8z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                        </div>
+                        
+                    </div>
+                </div>
+            `;
+        }
+
+        /**
+         * Crea la ruta de la colección privada del usuario.
+         */
+        function getUserProductsPath() {
+            if (!userId) {
+                console.error("No hay ID de usuario disponible.");
+                return null;
+            }
+            return `artifacts/${appId}/users/${userId}/${PRODUCTS_COLLECTION}`;
+        }
+
+        /**
+         * Agrega un nuevo producto a Firestore.
+         */
+        async function saveProduct(data) {
+            const path = getUserProductsPath();
+            if (!path) return;
+
+            if (dailyRate <= 0) {
+                 showCustomModal("Advertencia", "No se puede guardar. La Tasa del Dólar debe ser mayor que 0.", true);
+                 return;
+            }
+
+            try {
+                await addDoc(collection(db, path), {
+                    name: data.name,
+                    price_usd: data.price_usd,
+                    price_sell_ves: data.price_sell_ves,
+                    timestamp: new Date()
+                });
+
+                showCustomModal("¡Éxito!", "Producto guardado y cálculo realizado.", false);
+                // Ocultar el modal y limpiar el formulario
+                toggleProductModal(false); 
+            } catch (e) {
+                console.error("Error al añadir documento: ", e);
+                showCustomModal("Error al Guardar", `No se pudo guardar el producto: ${e.message}`, true);
+            }
+        }
+        
+        /**
+         * Actualiza un producto en Firestore.
+         * @param {string} docId ID del documento.
+         * @param {Object} updates Campos a actualizar.
+         */
+        async function updateProduct(docId, updates) {
+            if (!db || !userId) return;
+
+            const path = getUserProductsPath();
+            const docRef = doc(db, path, docId);
+
+            try {
+                await updateDoc(docRef, updates);
+                // No mostramos modal de éxito para ediciones rápidas en línea
+            } catch (error) {
+                console.error("Error al actualizar documento: ", error);
+                showCustomModal("Error al Actualizar", `No se pudo guardar el cambio: ${error.message}`, true);
+            }
+        }
+
+
+        /**
+         * Escucha los cambios en la colección de productos en tiempo real.
+         */
+        function listenToProducts() {
+            const path = getUserProductsPath();
+            const productsListElement = document.getElementById('products-list');
+            const loadingMessage = document.getElementById('loading-message');
+
+            if (!path) {
+                if (loadingMessage) loadingMessage.textContent = 'Esperando autenticación...';
+                return;
+            }
+            // Mover el mensaje de carga solo si existe (para evitar errores)
+            if (loadingMessage && productsListElement.contains(loadingMessage)) {
+                loadingMessage.remove(); 
+            }
+
+            const productsCollectionRef = collection(db, path);
+            const q = productsCollectionRef;
+
+            onSnapshot(q, (snapshot) => {
+                productsListElement.innerHTML = '';
+                let totalProfitVES = 0;
+                let totalSalesVES = 0;
+
+                if (snapshot.empty) {
+                    productsListElement.innerHTML = '<p class="text-center text-gray-500 py-4">Aún no hay productos. ¡Agrega uno!</p>';
+                    // Si la lista está vacía, igual actualizamos el resumen a 0
+                    updateTotalsSummary(0, 0); 
+                    return;
+                }
+
+                const products = [];
+                snapshot.forEach(doc => {
+                    products.push({ id: doc.id, ...doc.data() });
+                });
+
+                // Ordenar por timestamp (los más nuevos primero)
+                products.sort((a, b) => (b.timestamp?.toDate() || 0) - (a.timestamp?.toDate() || 0));
+
+                products.forEach(product => {
+                    productsListElement.insertAdjacentHTML('beforeend', createProductHtml(product, product.id));
+
+                    // Calcular totales
+                    const { profitVES } = calculateProfit(product.price_usd, product.price_sell_ves, dailyRate);
+                    totalProfitVES += profitVES;
+                    totalSalesVES += product.price_sell_ves;
+                });
+                
+                // Actualizar el resumen TOTAL en la parte superior
+                updateTotalsSummary(totalProfitVES, totalSalesVES);
+
+                attachDeleteListeners();
+                attachEditListeners();
+
+            }, (error) => {
+                console.error("Error al escuchar los productos: ", error);
+                productsListElement.innerHTML = '<p class="text-center text-red-500 py-4">Error al cargar los datos de productos.</p>';
+                updateTotalsSummary(0, 0); // Limpiar el resumen si hay error
+            });
+        }
+
+        /**
+         * Genera el HTML para el resumen de ganancias.
+         * @param {number} totalProfitVES Ganancia total.
+         * @param {number} totalSalesVES Ventas totales.
+         */
+        function updateTotalsSummary(totalProfitVES, totalSalesVES) {
+            const totalsContainer = document.getElementById('totals-summary-container');
+            const totalMargin = totalSalesVES > 0 ? (totalProfitVES / totalSalesVES) * 100 : 0;
+            const profitClass = totalProfitVES >= 0 ? 'text-green-700' : 'text-red-700';
+
+            const summaryHtml = `
+                <div class="bg-blue-50 p-3 rounded-xl shadow-md border border-blue-200">
+                    <h3 class="text-sm font-bold text-gray-800 mb-1 leading-none">Resumen Total (Tasa: ${dailyRate.toFixed(2)} VES/USD)</h3>
+                    <div class="grid grid-cols-2 gap-2 text-center">
+                        <div>
+                            <p class="text-xs font-medium text-gray-600 leading-none">Ganancia (VES)</p>
+                            <p class="text-lg font-extrabold ${profitClass} leading-tight">
+                                ${totalProfitVES.toFixed(2)}
+                            </p>
+                        </div>
+                        <div>
+                            <p class="text-xs font-medium text-gray-600 leading-none">Margen Promedio (%)</p>
+                            <p class="text-lg font-extrabold ${profitClass} leading-tight">
+                                ${totalMargin.toFixed(2)}%
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            totalsContainer.innerHTML = summaryHtml;
+        }
+
+
+        /**
+         * Elimina un producto de Firestore.
+         */
+        async function deleteProduct(docId) {
+            const path = getUserProductsPath();
+            if (!path) return;
+
+            try {
+                await deleteDoc(doc(db, path, docId));
+                showCustomModal("Eliminado", "Producto eliminado exitosamente.", false);
+            } catch (error) {
+                console.error("Error al eliminar documento: ", error);
+                showCustomModal("Error al Eliminar", `No se pudo eliminar el producto: ${error.message}`, true);
+            }
+        }
+
+        /**
+         * Adjunta los listeners de click a los botones de eliminación.
+         */
+        function attachDeleteListeners() {
+            document.querySelectorAll('.delete-btn').forEach(button => {
+                button.onclick = (e) => {
+                    e.preventDefault();
+                    const docId = e.currentTarget.getAttribute('data-id');
+
+                    // Lógica para mostrar el modal de confirmación
+                    const modal = document.getElementById('custom-modal');
+                    const modalTitle = document.getElementById('modal-title');
+                    const modalMessage = document.getElementById('modal-message');
+                    const modalCloseButton = document.getElementById('modal-close-button');
+
+                    modalTitle.textContent = "Confirmar Eliminación";
+                    modalTitle.classList.remove('text-red-600');
+                    modalTitle.classList.add('text-blue-600');
+                    modalMessage.textContent = "¿Estás seguro de que quieres eliminar este producto de la lista?";
+                    modalCloseButton.textContent = "Cancelar";
+
+                    let confirmButton = document.getElementById('confirm-delete-button');
+                    if (!confirmButton) {
+                        confirmButton = document.createElement('button');
+                        confirmButton.id = 'confirm-delete-button';
+                        confirmButton.className = 'w-full bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 mt-2';
+                        confirmButton.textContent = "Confirmar Eliminación";
+                        modalCloseButton.parentNode.insertBefore(confirmButton, modalCloseButton.nextSibling);
+                    } else {
+                        confirmButton.style.display = 'block';
+                    }
+
+                    modal.classList.remove('hidden');
+
+                    confirmButton.onclick = () => {
+                        modal.classList.add('hidden');
+                        confirmButton.style.display = 'none';
+                        deleteProduct(docId);
+                    };
+
+                    modalCloseButton.onclick = () => {
+                        modal.classList.add('hidden');
+                        if (confirmButton) confirmButton.style.display = 'none';
+                        // Restaurar el listener simple de cerrar
+                        document.getElementById('modal-close-button').onclick = () => {
+                            document.getElementById('custom-modal').classList.add('hidden');
+                        };
+                    };
+                };
+            });
+        }
+        
+        /**
+         * Adjunta listeners para la edición en línea.
+         */
+        function attachEditListeners() {
+            document.querySelectorAll('.editable-field').forEach(field => {
+                field.onclick = (e) => startEdit(e.target);
+            });
+        }
+
+        /**
+         * Convierte un campo de texto en un input editable.
+         * @param {HTMLElement} element El span que se va a editar.
+         */
+        function startEdit(element) {
+            // Evitar doble edición
+            if (element.querySelector('input')) return;
+
+            const docId = element.closest('.profit-item')?.getAttribute('data-id');
+            const fieldName = element.getAttribute('data-field');
+            const dataType = element.getAttribute('data-type');
+            const originalValue = element.textContent.trim().replace('$', '').replace(' USD', '').replace(' VES', '');
+
+            // 1. Crear el campo de entrada
+            const input = document.createElement('input');
+            input.type = dataType === 'number' ? 'number' : 'text';
+            input.value = dataType === 'number' ? parseFloat(originalValue) : originalValue;
+            input.className = 'edit-input';
+            
+            if (dataType === 'number') {
+                input.step = '0.01';
+                input.min = '0';
+            }
+            
+            input.onblur = () => finishEdit(input, docId, fieldName, element);
+            input.onkeypress = (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    finishEdit(input, docId, fieldName, element);
+                }
+            };
+            
+            // 2. Reemplazar el span con el input
+            element.innerHTML = '';
+            element.appendChild(input);
+            input.focus();
+        }
+
+        /**
+         * Finaliza la edición, guarda los cambios y restaura el campo de texto.
+         */
+        function finishEdit(input, docId, fieldName, originalElement) {
+            const newValue = input.value.trim();
+            const originalText = originalElement.getAttribute('data-original-value') || originalElement.textContent;
+            
+            let updates = {};
+            let valueToSave;
+
+            if (fieldName !== 'name') {
+                // Para campos numéricos (precios)
+                valueToSave = parseFloat(newValue);
+                if (isNaN(valueToSave) || valueToSave < 0) {
+                    showCustomModal("Error de Entrada", "El valor debe ser un número positivo.", true);
+                    // Restaurar el valor original en el display si la entrada no es válida
+                    originalElement.textContent = originalText; 
+                    return;
+                }
+                updates[fieldName] = valueToSave;
+            } else {
+                // Para el campo de nombre (texto)
+                if (newValue === "") {
+                    showCustomModal("Error de Entrada", "El nombre del producto no puede estar vacío.", true);
+                    originalElement.textContent = originalText;
+                    return;
+                }
+                valueToSave = newValue;
+                updates[fieldName] = valueToSave;
+            }
+
+            // Si el valor no ha cambiado, no hacemos nada, solo restauramos el texto
+            if (valueToSave.toString() === originalText.toString() || (fieldName !== 'name' && valueToSave.toFixed(2) === originalText)) {
+                originalElement.textContent = originalText;
+                return;
+            }
+            
+            // 3. Guardar en Firestore
+            if (docId) { // Solo actualiza si hay un ID de documento (productos)
+                updateProduct(docId, updates);
+            }
+            
+            // La función listenToProducts (onSnapshot) se encargará de re-renderizar la lista
+            // y actualizar los cálculos de margen automáticamente.
+        }
+
+
+        // --- 4. Manejo del Formulario de Producto ---
+
+        document.getElementById('product-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const name = document.getElementById('product-name').value.trim();
+            const priceUSDInput = document.getElementById('price-usd').value;
+            const priceSellVESInput = document.getElementById('price-sell-ves').value;
+            const errorMessageElement = document.getElementById('product-error-message');
+
+            const price_usd = parseFloat(priceUSDInput);
+            const price_sell_ves = parseFloat(priceSellVESInput);
+
+            errorMessageElement.classList.add('hidden');
+
+            if (dailyRate <= 0) {
+                 errorMessageElement.textContent = "Error: La Tasa del Dólar debe ser mayor que 0.";
+                 errorMessageElement.classList.remove('hidden');
+                 return;
+            }
+
+            // Validación básica
+            if (name === "" || isNaN(price_usd) || isNaN(price_sell_ves) || price_usd < 0 || price_sell_ves < 0) {
+                errorMessageElement.textContent = "Por favor, complete todos los campos con valores válidos (números positivos).";
+                errorMessageElement.classList.remove('hidden');
+                return;
+            }
+
+            const { costVES } = calculateProfit(price_usd, price_sell_ves, dailyRate);
+
+            if (price_sell_ves < costVES) {
+                showCustomModal("Advertencia de Pérdida", `El precio de venta en VES (${price_sell_ves.toFixed(2)}) es menor que el costo equivalente en VES (${costVES.toFixed(2)}). Esto resultará en una pérdida.`, true);
+            }
+
+            const productData = { name, price_usd, price_sell_ves };
+            document.getElementById('save-button').textContent = 'Guardando...';
+            document.getElementById('save-button').disabled = true;
+
+            await saveProduct(productData);
+
+            document.getElementById('save-button').textContent = 'Guardar Producto y Calcular';
+            document.getElementById('save-button').disabled = false;
+        });
+
+
+        // Iniciar la aplicación al cargar la ventana
+        window.onload = initializeFirebase;
+    </script>
+</body>
+</html>
